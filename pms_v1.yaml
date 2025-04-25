@@ -1,13 +1,32 @@
+swagger: '2.0'
 info:
-  title: TalentTech pms API V1
+  title: TalentTech Goals & PMS API V1
   description: Публичное API ТТ Цели V1
   contact:
     email: support@talenttech.ru
   version: 1.0.0
-swagger: '2.0'
+
+host: api.pms.talenttechlab.com
+basePath: /integration/api/v1
+schemes:
+  - https
+  - http
+
 produces:
   - application/json
+  - application/xml
+  - application/octet-stream
+  - text/plain
+
+consumes:
+  - application/json
+  - multipart/form-data
+
 securityDefinitions:
+  api_key:
+    type: apiKey
+    name: Authorization
+    in: header
   ttAuth:
     type: oauth2
     flow: implicit
@@ -15,119 +34,107 @@ securityDefinitions:
     scopes:
       'tasks:write': Редактирование целей
       'checkpoints:write': Редактирование отчетов
+
 security:
   - ttAuth:
       - 'tasks:write'
       - 'checkpoints:write'
-host: api.pms.talenttechlab.com
-basePath: /integration/api/v1
-schemes:
-  - https
+
 tags:
-  - name: tasks
-    description: Управление целями
+  - name: users
+    description: Operations about users
   - name: checkpoints
     description: Управление отчетами
+  - name: tasks
+    description: Управление целями
+  - name: status
+    description: Operations about statuses
+
 paths:
-  '/tasks/{id}/state/approve':
-    post:
-      summary: перевести цель в статус "одобрена"(согласовать)
-      description: 'post /tasks/:id/state/approve'
+  /v1/users/tasks:
+    get:
+      summary: Список целей для пользователя-исполнителя
       produces:
-        - application/json
-      consumes:
         - application/json
       parameters:
         - in: header
-          name: Authorization
-          description: заголовок с токеном и его типом Bearer
+          name: X-User-ID
+          description: ID пользователя от имени которого совершаются действия
           type: string
           required: true
-        - in: path
-          name: id
-          description: id цели
+        - in: query
+          name: categories_ids[]
+          description: ids категорий целей
+          type: array
+          items:
+            type: string
+          collectionFormat: multi
+        - in: query
+          name: planning_horizon_year
           type: integer
           format: int32
-          required: true
+        - in: query
+          name: limit
+          type: integer
+          format: int32
+        - in: query
+          name: page
+          type: integer
+          format: int32
       security:
-        - ttAuth:
-            - 'tasks:write'
+        - api_key: []
       responses:
-        '201':
-          description: 'post /tasks/:id/state/approve'
-        '403':
-          description: Forbidden
+        '200':
+          description: get /v1/users/tasks
           schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Not found
-          schema:
-            $ref: '#/definitions/Error'
-        '422':
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/Error'
+            $ref: '#/definitions/Integrations_V1_Users_Tasks'
       tags:
-        - tasks
-      operationId: postTasksIdStateApprove
-  '/tasks/{id}/state/to_draft':
-    post:
-      summary: перевести цель в статус "черновик"(отклонить согласование)
-      description: 'post /tasks/:id/state/to_draft'
+        - users
+      operationId: getV1UsersTasks
+
+  /v1/tasks/{task_id}/checkpoints/{id}:
+    delete:
+      summary: удалить отчет для цели
       produces:
-        - application/json
-      consumes:
         - application/json
       parameters:
         - in: header
-          name: Authorization
-          description: заголовок с токеном и его типом Bearer
-          type: string
-          required: true
-        - in: path
-          name: id
-          description: id цели
-          type: integer
-          format: int32
-          required: true
-      security:
-        - ttAuth:
-            - 'tasks:write'
-      responses:
-        '201':
-          description: 'post /tasks/:id/state/to_draft'
-        '403':
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/Error'
-        '404':
-          description: Not found
-          schema:
-            $ref: '#/definitions/Error'
-        '422':
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/Error'
-      tags:
-        - tasks
-      operationId: postTasksIdStateToDraft
-  '/tasks/{task_id}/checkpoints':
-    post:
-      summary: создать отчет для цели
-      description: 'POST /tasks/:task_id/checkpoints'
-      produces:
-        - application/json
-      consumes:
-        - application/json
-      parameters:
-        - in: header
-          name: Authorization
-          description: заголовок с токеном и его типом Bearer
+          name: X-User-ID
+          description: ID пользователя от имени которого совершаются действия
           type: string
           required: true
         - in: path
           name: task_id
-          description: id цели
+          type: integer
+          format: int32
+          required: true
+        - in: path
+          name: id
+          type: integer
+          format: int32
+          required: true
+      security:
+        - api_key: []
+      responses:
+        '204':
+          description: DELETE /tasks/:task_id/checkpoints/:id
+      tags:
+        - checkpoints
+      operationId: deleteV1TasksTaskIdCheckpointsId
+
+  /tasks/{task_id}/checkpoints:
+    post:
+      summary: создать отчет для цели
+      description: POST /tasks/:task_id/checkpoints
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          required: true
+        - in: path
+          name: task_id
           type: integer
           format: int32
           required: true
@@ -141,7 +148,7 @@ paths:
             - 'checkpoints:write'
       responses:
         '201':
-          description: 'POST /tasks/:task_id/checkpoints'
+          description: POST /tasks/:task_id/checkpoints
           schema:
             $ref: '#/definitions/Integrations_V1_Checkpoints_Create'
         '403':
@@ -159,6 +166,117 @@ paths:
       tags:
         - checkpoints
       operationId: postTasksTaskIdCheckpoints
+
+  /tasks/{id}/state/approve:
+    post:
+      summary: перевести цель в статус "одобрена"(согласовать)
+      description: post /tasks/:id/state/approve
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          required: true
+        - in: path
+          name: id
+          type: integer
+          format: int32
+          required: true
+      security:
+        - ttAuth:
+            - 'tasks:write'
+      responses:
+        '201':
+          description: post /tasks/:id/state/approve
+        '403':
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        '422':
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/Error'
+      tags:
+        - tasks
+      operationId: postTasksIdStateApprove
+
+  /tasks/{id}/state/to_draft:
+    post:
+      summary: перевести цель в статус "черновик"(отклонить согласование)
+      description: post /tasks/:id/state/to_draft
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          required: true
+        - in: path
+          name: id
+          type: integer
+          format: int32
+          required: true
+      security:
+        - ttAuth:
+            - 'tasks:write'
+      responses:
+        '201':
+          description: post /tasks/:id/state/to_draft
+        '403':
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/Error'
+        '404':
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        '422':
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/Error'
+      tags:
+        - tasks
+      operationId: postTasksIdStateToDraft
+
+  /v1/tasks/categories:
+    get:
+      summary: Список категории целей
+      produces:
+        - application/json
+      security:
+        - api_key: []
+      responses:
+        '200':
+          description: get /v1/tasks/categories
+          schema:
+            $ref: '#/definitions/TaskCategories::Index'
+      tags:
+        - tasks
+      operationId: getV1TasksCategories
+
+  /v1/status:
+    get:
+      summary: Статус работы АПИ
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: X-User-ID
+          type: string
+      security:
+        - api_key: []
+      responses:
+        '200':
+          description: get /status
+      tags:
+        - status
+      operationId: getV1Status
+
 definitions:
   Error:
     type: object
@@ -168,19 +286,17 @@ definitions:
       message:
         type: string
     description: Error model
+
   postTasksTaskIdCheckpoints:
     type: object
     properties:
       fact_value:
         type: number
         format: double
-        description: значение которое было достигнуто
       description:
         type: string
-        description: описание
       checkpoint_period_key:
         type: string
-        description: ключ периода отчетности
         enum:
           - y_1
           - hy_1
@@ -206,21 +322,120 @@ definitions:
       checkpoint_period_year:
         type: integer
         format: int32
-        description: год отчета
       date:
         type: string
         format: date
-        description: дата дополнительного или итогового отчета
     required:
       - fact_value
       - checkpoint_period_key
       - checkpoint_period_year
-    description: 'POST /tasks/:task_id/checkpoints'
+    description: POST /tasks/:task_id/checkpoints
+
   Integrations_V1_Checkpoints_Create:
     type: object
     properties:
       id:
         type: integer
         format: int32
-        description: id
     description: Integrations_V1_Checkpoints_Create model
+
+  Integrations_V1_Users_Tasks:
+    type: object
+    properties:
+      tasks:
+        type: array
+        items:
+          $ref: '#/definitions/Integrations_V1_Tasks_Show'
+      total:
+        type: integer
+        format: int32
+    required:
+      - tasks
+      - total
+    description: Integrations_V1_Users_Tasks model
+
+  Integrations_V1_Tasks_Show:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int32
+      name:
+        type: string
+      description:
+        type: string
+      category:
+        type: string
+      creator_id:
+        type: string
+      assignee_id:
+        type: string
+
+  Checkpoints::Show:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int32
+      name:
+        type: string
+      task_id:
+        type: integer
+        format: int32
+      task_assignee_id:
+        type: string
+      author:
+        $ref: '#/definitions/Users::Info'
+    description: Checkpoints::Show model
+
+  Users::Info:
+    type: object
+    properties:
+      id:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      middle_name:
+        type: string
+      position_name:
+        type: string
+      team_id:
+        type: string
+      team_name:
+        type: string
+      state:
+        type: string
+        enum:
+          - initial
+          - active
+          - disabled
+    required:
+      - id
+      - state
+
+  TaskCategories::Index:
+    type: object
+    properties:
+      task_categories:
+        type: array
+        items:
+          $ref: '#/definitions/TaskCategories::Index::Show'
+    required:
+      - task_categories
+    description: TaskCategories::Index model
+
+  TaskCategories::Index::Show:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+      color:
+        type: string
+    required:
+      - id
+      - name
+      - color
